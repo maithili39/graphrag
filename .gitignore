@@ -1,0 +1,41 @@
+.env
+.env.*
+*.env
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+*.egg
+
+data/raw/
+data/faiss/
+eval/results/
+
+# data/chunks — large binary files (FAISS index + chunks pickle) exceed GitHub's 100 MB
+# limit. Keep them locally or regenerate with scripts/build_faiss.py. Only commit the
+# small JSON progress/status files.
+data/chunks/*.faiss
+data/chunks/*.faiss.ckpt
+data/chunks/*.faiss.progress.json
+data/chunks/*.pkl
+data/chunks/*.jsonl
+# …but DO commit the small demo index (~2 MB total) — it's what deployed Basic RAG loads.
+!data/chunks/rag_index_demo.faiss
+!data/chunks/chunks_demo.pkl
+data/chunks/faiss_parts/
+data/ingest_progress.json
+data/chunks/failed_ingestion.json
+
+node_modules/
+frontend/dist/
+
+*.bin
+
+# runtime logs/pids
+data/qa/*.log
+data/qa/*.pid
+
+frontend_home.png
+*_screenshot.png
+graphrag/
