@@ -10,7 +10,14 @@ venv/
 
 data/raw/
 data/faiss/
-eval/results/
+# eval/results: ignore scratch logs but DO commit the benchmark evidence —
+# the strict-judge runs the README numbers come from, plus the writeup.
+eval/results/*
+!eval/results/run1.csv
+!eval/results/run2.csv
+!eval/results/run3.csv
+!eval/results/BENCHMARK.md
+!eval/results/PILOT_BENCHMARK.md
 
 # data/chunks — large binary files (FAISS index + chunks pickle) exceed GitHub's 100 MB
 # limit. Keep them locally or regenerate with scripts/build_faiss.py. Only commit the

@@ -135,5 +135,7 @@ python api/app.py             # then open the React frontend
 > live graph, the judge is a single strict Gemini judge with no fallback and no auto-pass,
 > output caps are equal, and every number above comes from one complete strict-judge run
 > whose raw per-question verdicts are committed (`eval/results/run1.csv`). LLM-judge runs
-> on 55 questions have a ±3–5% run-to-run noise floor; additional runs will be aggregated
-> with `eval/aggregate_runs.py` as mean ± range.
+> on 55 questions have a ±3–5% run-to-run noise floor, so we ran the full strict-judge
+> benchmark **three times** (`run1.csv`, `run2.csv`, `run3.csv`, all committed): GraphRAG
+> 50.9% / 52.7% / 50.9% (mean 51.5%), Basic RAG 9.1% and LLM-only 1.8% identical across
+> all three runs. The headline table reports run1; the other runs only strengthen it.
