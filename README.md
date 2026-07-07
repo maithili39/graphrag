@@ -28,15 +28,18 @@ Benchmark on **55 multi-hop questions** built from real in-corpus citation chain
 
 | Pipeline | Pass rate | 2-hop | 3-hop | Avg tokens | BERTScore (raw / rescaled) |
 |----------|:---------:|:-----:|:-----:|:----------:|:--------------------------:|
-| LLM-only | 32.7% | 30.0% | 40.0% | 609 | — |
-| Basic RAG (FAISS top-k) | 14.5% | 17.5% | 6.7% | 2,281 | — |
-| **GraphRAG (TigerGraph)** | **69.1%** | **67.5%** | **73.3%** | **1,546** | **0.839 / 0.519** |
+| LLM-only | 1.8% | 2.5% | 0.0% | 609 | 0.787 / 0.362 |
+| Basic RAG (FAISS top-k) | 9.1% | 12.5% | 0.0% | 2,288 | 0.807 / 0.422 |
+| **GraphRAG (TigerGraph)** | **50.9%** | **55.0%** | **40.0%** | **1,423** | **0.841 / 0.524** |
 
-- **GraphRAG passes 4.7× more often than Basic RAG** while using **32% fewer tokens**.
-- **3-hop is the clearest proof:** GraphRAG 73.3% vs Basic RAG 6.7%. Flat chunk similarity
+- **GraphRAG passes 5.6× more often than Basic RAG** while using **37.8% fewer tokens**.
+- **3-hop is the clearest proof:** GraphRAG 40.0% vs Basic RAG 0.0%. Flat chunk similarity
   structurally cannot assemble a three-case citation chain (A←B←C); graph traversal can.
-- Judged by HuggingFace `InferenceClient` (100 verdicts) with a Gemini fallback on credit
-  exhaustion (65); every verdict recorded with its source in the results CSV.
+- Every one of the 165 verdicts came from the **single strict Gemini judge**
+  (`judge_source=gemini_strict` on every row of `eval/results/run1.csv`) — no fallback
+  judge, no mid-run judge swap, no auto-pass. A strict judge fails partial or hedged
+  answers, so absolute pass rates are low for all three pipelines by design; the
+  **relative gap** is the result.
 
 ## Honesty guarantees (verifiable)
 
@@ -44,7 +47,8 @@ Benchmark on **55 multi-hop questions** built from real in-corpus citation chain
   cited case(s) to `LegalCase` vertex IDs and runs the installed `citation_multihop_retrieve`
   GSQL query over real `CITES` edges. There is **no snapshot file and no curated subset**. If
   the graph returns nothing, the answer is `status="no_context"` and scored as a **FAIL** — in
-  the benchmark run, **0 of 55** GraphRAG answers were no-context.
+  the benchmark run, **5 of 55** GraphRAG answers were no-context and all 5 are counted as
+  failures in the 50.9%.
 - **Strict judge, no auto-pass.** `eval/judge.py` returns PASS only when the judge says PASS;
   errors count as FAIL; there is no "default to PASS", no BERTScore override.
 - **Equal output budget.** All three pipelines use the same 512-token completion cap, so the
@@ -120,13 +124,16 @@ python api/app.py             # then open the React frontend
 | Criterion | Where |
 |-----------|-------|
 | Dataset ≥100M tokens | 117.5M, Gemini-verified (`data/token_count_official.json`) |
-| Multi-hop GraphRAG advantage | 3-hop 73.3% vs Basic RAG 6.7% (`eval/results/`) |
-| Token efficiency | 32% reduction vs Basic RAG, equal output caps |
-| LLM-as-a-Judge | `eval/judge.py` — HF primary, Gemini fallback, strict |
-| BERTScore | `evaluate.load("bertscore", rescale_with_baseline=True)` |
+| Multi-hop GraphRAG advantage | 3-hop 40.0% vs Basic RAG 0.0% (`eval/results/run1.csv`) |
+| Token efficiency | 37.8% reduction vs Basic RAG, equal 512-token output caps |
+| LLM-as-a-Judge | `eval/judge.py` — one strict Gemini judge for the whole run, no fallback |
+| BERTScore | `evaluate.load("bertscore", rescale_with_baseline=True)`, all 3 pipelines |
 
 > **Note for reviewers:** an earlier version of this project reported inflated numbers
 > (91.7% / 80.9% / 0.889) from a retrieval path that silently fell back to a hand-built
 > snapshot, plus an auto-pass judge. Both are gone: GraphRAG now retrieves only from the
-> live graph, the judge is strict, output caps are equal, and the numbers above are from a
-> genuine run (`data/qa/eval_tokenopt.log`, `eval/results/`).
+> live graph, the judge is a single strict Gemini judge with no fallback and no auto-pass,
+> output caps are equal, and every number above comes from one complete strict-judge run
+> whose raw per-question verdicts are committed (`eval/results/run1.csv`). LLM-judge runs
+> on 55 questions have a ±3–5% run-to-run noise floor; additional runs will be aggregated
+> with `eval/aggregate_runs.py` as mean ± range.

@@ -101,14 +101,26 @@ def gemini_generate(client, prompt: str, max_tokens: int = 400) -> str:
             return _extract_text(response)
         except Exception as e:
             err = str(e)
-            if ('429' in err or 'quota' in err.lower() or 'rate' in err.lower()) and attempt < max_attempts - 1:
+            err_l = err.lower()
+            rate_limited = '429' in err or 'quota' in err_l or 'rate' in err_l
+            # 503/UNAVAILABLE (and transient 500s) are the server's problem, not the
+            # caller's -- without a retry here every such blip surfaces as an exception,
+            # and in eval that turns an infra hiccup into a spurious FAIL verdict.
+            transient = '503' in err or 'unavailable' in err_l or 'overloaded' in err_l or '500' in err
+            if (rate_limited or transient) and attempt < max_attempts - 1:
                 # The API tells us the exact wait in its error body (e.g. "retryDelay":
                 # "49s") -- free-tier per-minute quotas can require longer waits than a
                 # short fixed backoff ceiling ever reaches, so honor the server's number
                 # when present instead of guessing.
                 m = re.search(r"retryDelay['\"]?\s*:\s*['\"]?(\d+)", err)
-                wait = int(m.group(1)) + 2 if m else min(60, 3 * (2 ** attempt))
-                print(f'  [rate limit] waiting {wait}s (attempt {attempt + 1}/{max_attempts})…', flush=True)
+                if m:
+                    wait = int(m.group(1)) + 2
+                elif transient and not rate_limited:
+                    wait = min(30, 2 * (2 ** attempt))
+                else:
+                    wait = min(60, 3 * (2 ** attempt))
+                label = 'rate limit' if rate_limited else 'server unavailable'
+                print(f'  [{label}] waiting {wait}s (attempt {attempt + 1}/{max_attempts})…', flush=True)
                 time.sleep(wait)
             else:
                 raise

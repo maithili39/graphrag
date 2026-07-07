@@ -38,8 +38,11 @@ TG_HOST = os.environ["TG_HOST"]
 TG_SECRET = os.environ["TG_PASSWORD"]
 GRAPH_NAME = os.environ.get("TG_GRAPH", "LegalGraph")
 
-BATCH_SIZE = 500
-TEXT_TRUNCATE = 6000  # keep vertex payload sane; full text still used for chunk-level QA later
+BATCH_SIZE = 200
+# 40000 covers the full text of ~100% of opinions (corpus max ≈ 36.4k chars). The old
+# 6000 cap head-truncated 35% of opinions at ingestion, so a holding past the cutoff
+# could never be retrieved no matter how good retrieval-time selection was.
+TEXT_TRUNCATE = 40000
 
 
 def get_token() -> str:

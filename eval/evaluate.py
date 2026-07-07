@@ -11,6 +11,7 @@ index (both pipelines then draw on the same 117.5M-token corpus).
 import json
 import os
 import sys
+import time
 from pathlib import Path
 
 os.environ.setdefault("HF_HUB_DISABLE_PROGRESS_BARS", "1")
@@ -48,11 +49,19 @@ def main():
             except Exception as e:
                 print(f"  [{name}] pipeline ERROR: {e}", flush=True)
                 result = {"answer": "", "total_tokens": 0, "latency_s": 0, "cost_usd": 0}
-            try:
-                judge, judge_source = llm_judge_with_source(question, ground_truth, result["answer"])
-            except Exception as e:
-                print(f"  [{name}] judge ERROR: {e}", flush=True)
-                judge, judge_source = "FAIL", "error"
+            # One retry after a pause: gemini_generate already retries transient 503s
+            # internally, so reaching here twice means the API is genuinely down for
+            # this row. Recorded as source='error' (surfaced in the summary), never
+            # silently mixed into real verdicts.
+            judge, judge_source = "FAIL", "error"
+            for judge_attempt in range(2):
+                try:
+                    judge, judge_source = llm_judge_with_source(question, ground_truth, result["answer"])
+                    break
+                except Exception as e:
+                    print(f"  [{name}] judge ERROR (attempt {judge_attempt + 1}/2): {e}", flush=True)
+                    if judge_attempt == 0:
+                        time.sleep(15)
             rows.append({
                 "qid": i,
                 "hop_count": qa.get("hop_count", 0),
@@ -100,8 +109,19 @@ def print_summary(df: pd.DataFrame):
     gr = df[df["pipeline"] == "graphrag"]
     reduction = (1 - gr["total_tokens"].mean() / rag_avg) * 100 if rag_avg else 0.0
 
-    print("\nComputing BERTScore for graphrag...")
-    bs = compute_bertscore(gr["answer"].tolist(), gr["ground_truth"].tolist())
+    print("\nComputing BERTScore (all pipelines)...")
+    bs = {}
+    for name, _ in PIPELINES:
+        sub = df[df["pipeline"] == name]
+        bs[name] = compute_bertscore(sub["answer"].fillna("").tolist(),
+                                     sub["ground_truth"].tolist())
+        if bs[name].get("error"):
+            # A broken metric must be loud: a silent 0.0 looks like a terrible score
+            # instead of a failed computation.
+            print(f"WARNING: BERTScore FAILED for {name}: {bs[name]['error']}")
+        else:
+            print(f"  [{name}] raw={bs[name]['raw_f1']}  rescaled={bs[name]['rescaled_f1']}")
+    bs = bs["graphrag"]
 
     gr_pass = (gr["judge"] == "PASS").mean() * 100
     rag_pass = (df[df["pipeline"] == "basic_rag"]["judge"] == "PASS").mean() * 100
